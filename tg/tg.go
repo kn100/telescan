@@ -2,7 +2,9 @@ package tg
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/brutella/dnssd"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kn100/telescan/scansession"
 	"go.uber.org/zap"
@@ -14,90 +16,89 @@ const (
 	scanPage          = "📷 Scan"
 	finishScan        = "✅ Finish"
 	cancel            = "❌ Cancel"
+	ScanGCTimeout     = 5 * time.Minute
 )
 
 type TG struct {
-	bot               *tgbotapi.BotAPI
-	apiKey            string
-	logger            *zap.SugaredLogger
-	authorizedUsers   []string
-	activeScanSession *scansession.ScanSession
-	scannerOverride   string
-	tmpDir            string
-	finalDir          string
+	bot             *tgbotapi.BotAPI
+	apiKey          string
+	logger          *zap.SugaredLogger
+	authorizedUsers []string
+	session         *scansession.ScanSession
+	scannerOverride string
+	tmpDir          string
+	finalDir        string
+	scanners        *[]*dnssd.BrowseEntry
 }
 
-func Init(apiKey string,
+func Init(
+	scanners *[]*dnssd.BrowseEntry,
 	authorizedUsers []string,
-	tmpDir, finalDir, scannerOverride string,
+	apiKey, tmpDir, finalDir, scannerOverride string,
 	logger *zap.SugaredLogger) *TG {
-	t := TG{}
-	t.apiKey = apiKey
-	t.tmpDir = tmpDir
-	t.finalDir = finalDir
-	t.scannerOverride = scannerOverride
-	t.logger = logger
-	t.authorizedUsers = authorizedUsers
-
-	t.logger.Debug("Starting Telegram bot")
-	if t.apiKey == "" {
-		t.logger.Warnf("Telegram API key not set, not starting Telegram bot")
+	if apiKey == "" {
+		logger.Warnf("Telegram API key not set, not starting Telegram bot")
 		return nil
+	}
+
+	t := TG{
+		apiKey:          apiKey,
+		tmpDir:          tmpDir,
+		finalDir:        finalDir,
+		scannerOverride: scannerOverride,
+		logger:          logger,
+		authorizedUsers: authorizedUsers,
+		scanners:        scanners,
 	}
 
 	bot, err := tgbotapi.NewBotAPI(t.apiKey)
 	if err != nil {
-		t.logger.Warnf("Unable to start Telegram bot: %s", err)
+		t.logger.Panicf("Unable to start Telegram bot: %s", err)
 		return nil
 	}
+
 	t.bot = bot
 	return &t
 }
 
 func (t *TG) Start() {
-	t.logger.Debug("Starting Telegram bot")
-	if t.apiKey == "" {
-		t.logger.Warnf("Telegram API key not set, not starting Telegram bot")
-		return
-	}
-
-	bot, err := tgbotapi.NewBotAPI(t.apiKey)
-	if err != nil {
-		t.logger.Warnf("Unable to start Telegram bot: %s", err)
-		return
-	}
-	t.bot = bot
+	go func() {
+		t.logger.Infof("Starting scan job GC")
+		for {
+			time.Sleep(1 * time.Minute)
+			t.logger.Debugw("Running scan job GC")
+			if t.session != nil && t.session.ScanLastUpdated.Add(ScanGCTimeout).Before(time.Now()) {
+				t.logger.Infow("Scan session expired. Expiring.", "session", t.session)
+				t.handleUnknownCommand(t.session.ChatID)
+				t.session = nil
+			}
+		}
+	}()
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := t.bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		t.logger.Debugw("Received message",
-			"user", update.Message.From.UserName,
-			"message", update.Message.Text)
+		t.logger.Debugw("Received message", "user", update.Message.From.UserName, "message", update.Message.Text)
+		t.logger.Debugw("Active scan session", "session", t.session)
 
-		if update.Message == nil ||
-			!slices.Contains(t.authorizedUsers, update.Message.From.UserName) {
-			t.logger.Debugw("Ignoring message from unauthorized user",
-				"user", update.Message.From.UserName)
+		// Handle empty messages as well as messages from unauthorized users
+		if update.Message == nil || !slices.Contains(t.authorizedUsers, update.Message.From.UserName) {
+			t.logger.Debugw("Ignoring message from unauthorized user", "user", update.Message.From.UserName)
 			continue
 		}
-		t.logger.Debugw("active scan session", "session", t.activeScanSession)
-		if t.activeScanSession == nil {
+
+		if t.session == nil {
 			// There is no active scan session, and the user probably wants one
 			t.newScanSession(update)
 			continue
-		} else if t.activeScanSession.UserName == update.Message.From.UserName {
+		} else if t.session.UserName == update.Message.From.UserName {
 			// There is an active scan session we own
-			t.logger.Debugw("Handling scan session message",
-				"user", update.Message.From.UserName)
 			t.handleScanSession(update)
 			continue
-		} else if t.activeScanSession.UserName != "" &&
-			// There is an active scan session we don't own
-			t.activeScanSession.UserName != update.Message.From.UserName {
-			t.logAndReportErrorToUser(update, "Scanner is in use at the moment", err)
+		} else if t.session.UserName != update.Message.From.UserName {
+			t.logAndReportErrorToUser(update, "Scanner busy", nil)
 			continue
 		}
 	}
@@ -106,25 +107,24 @@ func (t *TG) Start() {
 // newScanSession creates a new scan session for the user
 func (t *TG) newScanSession(update tgbotapi.Update) {
 	if update.Message.Text != createScanSession {
-		t.logger.Debug("Unknown command")
-		t.handleUnknownCommand(update)
+		t.handleUnknownCommand(update.Message.Chat.ID)
 		return
 	}
 	scanSession, err := scansession.Init(
-		update.Message.From.UserName,
+		*t.scanners,
 		t.scannerOverride,
 		t.tmpDir,
 		t.finalDir,
 		t.logger,
 	)
+	scanSession.SetUser(update.Message.From.UserName, update.Message.Chat.ID)
 	if err != nil {
 		t.logAndReportErrorToUser(update, "Unable to create scan session", err)
 		return
 	}
 
-	t.activeScanSession = scanSession
-	t.logger.Debugw("Created new scan session",
-		"user", update.Message.From.UserName)
+	t.session = scanSession
+
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "You have the scanner.")
 	msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
@@ -132,6 +132,9 @@ func (t *TG) newScanSession(update tgbotapi.Update) {
 			tgbotapi.NewKeyboardButton(cancel),
 		),
 	)
+	t.logger.Debugw("Created new scan session ",
+		"user", update.Message.From.UserName,
+		"session", t.session)
 	t.bot.Send(msg)
 }
 
@@ -139,22 +142,20 @@ func (t *TG) handleScanSession(update tgbotapi.Update) {
 	switch update.Message.Text {
 	case scanPage:
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Scanning page...")
+			"Scanning page, please wait...")
 		_, err := t.bot.Send(msg)
 		if err != nil {
 			t.logAndReportErrorToUser(update, "Unable to send message", err)
 			return
 		}
-		t.logger.Debugf("Scanning page %d", t.activeScanSession.NumberOfPagesScanned())
-		err = t.activeScanSession.Scan()
+
+		err = t.session.Scan()
 		if err != nil {
-			t.logger.Debugf("Unable to scan page: %s", err.Error())
 			t.logAndReportErrorToUser(update, "Unable to scan page", err)
 			return
 		}
 		msg = tgbotapi.NewMessage(update.Message.Chat.ID,
-			fmt.Sprintf("Scanned page %d. Please scan another page or finish.",
-				t.activeScanSession.NumberOfPagesScanned()))
+			fmt.Sprintf("Scanned page %d.", t.session.NumScanned()))
 		msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
 			tgbotapi.NewKeyboardButtonRow(
 				tgbotapi.NewKeyboardButton(scanPage),
@@ -165,32 +166,33 @@ func (t *TG) handleScanSession(update tgbotapi.Update) {
 		t.bot.Send(msg)
 		return
 	case finishScan:
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Finishing scan...")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Finishing scan...")
 		t.bot.Send(msg)
-		fileName, err := t.activeScanSession.WriteFinal()
+
+		fileName, err := t.session.WriteFinal()
 		if err != nil {
 			t.logAndReportErrorToUser(update, "Unable to write final scan", err)
 			return
 		}
+
 		msg = tgbotapi.NewMessage(update.Message.Chat.ID,
 			fmt.Sprintf("Scan finished. Wrote file `%s`.", fileName))
 		t.bot.Send(msg)
-		t.activeScanSession = nil
-		t.handleUnknownCommand(update)
+		t.session = nil
+		t.handleUnknownCommand(update.Message.Chat.ID)
 	case cancel:
-		t.activeScanSession.Cancel()
-		t.activeScanSession = nil
+		t.session.Cancel()
+		t.session = nil
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Scan cancelled.")
 		t.bot.Send(msg)
-		t.handleUnknownCommand(update)
+		t.handleUnknownCommand(update.Message.Chat.ID)
 	default:
-		t.handleUnknownCommand(update)
+		t.handleUnknownCommand(update.Message.Chat.ID)
 	}
 }
 
-func (t *TG) handleUnknownCommand(update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+func (t *TG) handleUnknownCommand(chatID int64) {
+	msg := tgbotapi.NewMessage(chatID,
 		"Welcome. Please use the buttons below to start scanning.")
 	msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(

@@ -1,13 +1,12 @@
-# syntax=docker/dockerfile:1
-   
-FROM golang:alpine
+FROM golang AS build
 WORKDIR /app
+COPY go.* /app/
+RUN go mod download
 COPY . .
-RUN apk add --no-cache sane-dev gcc libc-dev imagemagick-dev
-ENV CGO_ENABLED=1
-RUN go build -o telescan .
+RUN go build -ldflags="-s -w" -o telescan 
 
-FROM alpine
-RUN apk add --no-cache sane imagemagick
-COPY --from=0 /app/telescan /usr/local/bin/telescan
-ENTRYPOINT ["/usr/local/bin/telescan"]
+FROM debian:bookworm-slim AS run
+RUN apt-get update && apt-get install -y ca-certificates
+RUN rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/telescan /telescan
+ENTRYPOINT ["/telescan"]
