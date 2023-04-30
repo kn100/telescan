@@ -36,6 +36,11 @@ type ScanSession struct {
 func (s *ScanSession) SetUser(userName string, ChatID int64) {
 	s.UserName = userName
 	s.ChatID = ChatID
+	s.Filename = fmt.Sprintf(
+		"%s-%s.pdf",
+		userName,
+		s.ScanStartTime.Format("2006-01-02-15-04-05"),
+	)
 }
 
 func Init(scanners []*dnssd.BrowseEntry, scannerName, tmpDir, finalDir string, logger *zap.SugaredLogger) (*ScanSession, error) {
@@ -61,11 +66,6 @@ func Init(scanners []*dnssd.BrowseEntry, scannerName, tmpDir, finalDir string, l
 	scanSession.ScanStartTime = time.Now()
 	scanSession.ScanLastUpdated = time.Now()
 	scanSession.logger = logger
-	scanSession.Filename = fmt.Sprintf(
-		"%s-%s.pdf",
-		scanSession.UserName,
-		scanSession.ScanStartTime.Format("2006-01-02-15-04-05"),
-	)
 
 	logger.Infow("Initialized scan session",
 		"detected_scanners", scanners,
