@@ -1,7 +1,9 @@
-# telescan
+# 🖨️ Telescan
 
 Telescan is a Telegram Bot that allows you to use your Airscan compatible 
 scanner from a conversation on Telegram.
+
+![](https://github.com/kn100/telescan/raw/master/demo.gif)
 
 ## But why?
 
@@ -29,9 +31,8 @@ override the scanner name that is used. If you don't specify this variable,
 the first scanner found will be used. Then, update the volumes to match your
 setup. The `/final` directory is where the final PDF will be placed. The
 `/tmp` directory is where the individual pages will be placed before being
-combined into a PDF. The `/etc/localtime` volume is optional and is used to
-set the timezone of the container to match the host. Host networking is essential
-since we need to be able to receive Bonjour broadcasts from the scanner.
+combined into a PDF. Host networking is essential since we need to be able to 
+receive Bonjour broadcasts from the scanner.
 
 ```yaml
 version: '3.8'
@@ -46,11 +47,6 @@ services:
       - AUTHORIZED_USERS=your-telegram-username,another-telegram-username,etc
       # SCANNER_OVERRIDE="your-scanner"
     volumes:
-      - "/etc/localtime:/etc/localtime:ro"
       - "/tmp:/tmp"
       - "/final:/final"
 ```
-
-## What does it look like?
-
-![](https://github.com/kn100/telescan/raw/master/demo.gif)
