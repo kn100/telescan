@@ -118,9 +118,8 @@ func (t *TG) handleFinishScanRequest(scanSession *scansession.ScanSession, updat
 	}
 	t.ssm.RemoveScanSession(update.Message.From.UserName)
 
-	t.sendMsgWithKB(update.Message.Chat.ID,
-		fmt.Sprintf("✅ Scan finished. Wrote file `%s`.", fileName),
-		scanSession)
+	t.sendMsg(update.Message.Chat.ID,
+		fmt.Sprintf("✅ Scan finished. Wrote file `%s`.", fileName))
 }
 
 func (t *TG) handleScanRequest(scanSession *scansession.ScanSession, update tgbotapi.Update) {
