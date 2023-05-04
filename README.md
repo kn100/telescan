@@ -1,11 +1,12 @@
 # 🖨️ Telescan
 
 Telescan is a Telegram Bot that allows you to use your Airscan compatible 
-scanner from a conversation on Telegram.
+scanner from a conversation on Telegram. It will save your scans to a directory
+of your choosing, and optionally send them to you through Telegram. 
 
 ![](https://github.com/kn100/telescan/raw/master/demo.gif)
 
-## But why?
+## Why?
 
 There are projects out there designed for document indexing and archiving. One
 such project is [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx)
@@ -16,7 +17,7 @@ process. Now, my process is to scan a document using Telescan, and it will
 dump it into my Paperless-ngx import directory. Paperless-ngx will then do its
 thing and I can search for the document later.
 
-## How do I use it?
+## Setup
 
 1. Create a Telegram Bot using the [BotFather](https://telegram.me/BotFather).
 2. Make sure your Telegram account has a username set.
@@ -24,15 +25,6 @@ thing and I can search for the document later.
 3. Start a chat with your new Telegram bot.
 
 ## Docker Compose
-Replace the environment variables with your own values. The `AUTHORIZED_USERS`
-variable is a comma separated list of Telegram usernames that are allowed to
-use the bot. The `SCANNER_OVERRIDE` variable is optional and can be used to
-override the scanner name that is used. If you don't specify this variable,
-the first scanner found will be used. Then, update the volumes to match your
-setup. The `/final` directory is where the final PDF will be placed. The
-`/tmp` directory is where the individual pages will be placed before being
-combined into a PDF. Host networking is essential since we need to be able to 
-receive Bonjour broadcasts from the scanner.
 
 ```yaml
 version: '3.8'
@@ -40,13 +32,40 @@ services:
   telescan:
     build: .
     image: kn100/telescan:latest
+    # Host networking is essential since we need to be able to receive Bonjour 
+    # broadcasts from the scanner. If you do not use host networking, you will
+    # need to set up a Bonjour reflector on your network.
     network_mode: "host"
     container_name: telescan
     environment:
+      # Get your API key from the BotFather on Telegram.
       - TELEGRAM_API_KEY=your-api-key
+      # Get your Telegram username from your Telegram profile. You may add more
+      # than one username, separated by commas, if you wish to allow multiple
+      # users to use your scanner. 
       - AUTHORIZED_USERS=your-telegram-username,another-telegram-username,etc
+      # Set to false to deny yourself the ability to ever receive scans through
+      # Telegram. True if you want to be asked on each scan whether you want to
+      # receive it or not. Note that Telegram is NOT a secure messaging platform
+      # and you should not use it to send sensitive documents, if you do not 
+      # trust Telegram.
+      - SEND_SEND_SCAN_TO_CHAT="true"
+      # Scanner name to insist on using. If you do not specify this variable,
+      # the first scanner found will be used. There is usually no need to set 
+      # this variable, unless you have multiple scanners and you want to use a
+      # specific one.
       # SCANNER_OVERRIDE="your-scanner"
     volumes:
       - "/tmp:/tmp"
       - "/final:/final"
+```
+
+## Running without Docker
+```bash
+TELEGRAM_API_KEY="<some-key>" \
+AUTHORIZED_USERS="some-user" \
+TMP_DIR="/tmp" \
+FINAL_DIR="/somewhere" \
+SEND_SCAN_TO_CHAT="false" \
+go run main.go
 ```

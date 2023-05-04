@@ -34,9 +34,14 @@ func main() {
 		env("FINAL_DIR", "/final"),
 	)
 
+	tgconfig := tg.TGConfig{
+		APIKey:         env("TELEGRAM_API_KEY", ""),
+		Users:          strings.Split(env("AUTHORIZED_USERS", ""), ","),
+		SendScanToChat: env("SEND_SCAN_TO_CHAT", "false") == "true",
+	}
+
 	tgbot := tg.Init(
-		env("TELEGRAM_API_KEY", ""),
-		strings.Split(env("AUTHORIZED_USERS", ""), ","),
+		tgconfig,
 		scannerManager,
 		scanSessionManager,
 		sugar)
