@@ -39,22 +39,22 @@ services:
     container_name: telescan
     environment:
       # Get your API key from the BotFather on Telegram.
-      - TELEGRAM_API_KEY=your-api-key
+      TELEGRAM_API_KEY: your-api-key
       # Get your Telegram username from your Telegram profile. You may add more
       # than one username, separated by commas, if you wish to allow multiple
       # users to use your scanner. 
-      - AUTHORIZED_USERS=your-telegram-username,another-telegram-username,etc
+      AUTHORIZED_USERS: your-telegram-username,another-telegram-username,etc
       # Set to false to deny yourself the ability to ever receive scans through
       # Telegram. True if you want to be asked on each scan whether you want to
       # receive it or not. Note that Telegram is NOT a secure messaging platform
       # and you should not use it to send sensitive documents, if you do not 
       # trust Telegram.
-      - SEND_SEND_SCAN_TO_CHAT="true"
+      SEND_SCAN_TO_CHAT: true
       # Scanner name to insist on using. If you do not specify this variable,
       # the first scanner found will be used. There is usually no need to set 
       # this variable, unless you have multiple scanners and you want to use a
       # specific one.
-      # SCANNER_OVERRIDE="your-scanner"
+      # SCANNER_OVERRIDE: your-scanner
     volumes:
       - "/tmp:/tmp"
       - "/final:/final"
