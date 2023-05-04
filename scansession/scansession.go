@@ -19,6 +19,7 @@ type ScanSession struct {
 	tmpDir          string
 	finalDir        string
 	filesInScan     [][]byte
+	wroteFinal      bool
 }
 
 func NewScanSession(userName string, chatID int64, tmpDir, finalDir string) *ScanSession {
@@ -38,8 +39,6 @@ func (s *ScanSession) AddImage(imgBytes []byte) {
 }
 
 func (s *ScanSession) WriteFinal() (string, error) {
-	// Dump all images in s.filesInScan to tmpDir/s.Filename named incrementally
-	// Then, use pdfcpu to merge them into a single PDF
 	filesOnDisk := make([]string, len(s.filesInScan))
 	for i := 0; i < len(s.filesInScan); i++ {
 		fileName := fmt.Sprintf("%s-%d.jpg", s.Filename(), i)
@@ -61,6 +60,8 @@ func (s *ScanSession) WriteFinal() (string, error) {
 		}
 	}
 
+	s.wroteFinal = true
+
 	return s.Filename(), err
 }
 
@@ -68,6 +69,14 @@ func (s *ScanSession) Filename() string {
 	return fmt.Sprintf("%s-%s.pdf", s.userName, s.ScanStartTime.Format("2006-01-02-15-04-05"))
 }
 
+func (s *ScanSession) FullPathToScan() string {
+	return filepath.Join(s.finalDir, s.Filename())
+}
+
 func (s *ScanSession) NumImages() int {
 	return len(s.filesInScan)
+}
+
+func (s *ScanSession) IsWritten() bool {
+	return s.wroteFinal
 }

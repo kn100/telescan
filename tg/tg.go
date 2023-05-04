@@ -2,6 +2,7 @@ package tg
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kn100/telescan/scanner"
@@ -13,39 +14,44 @@ import (
 const (
 	scanFirstPage = "🖨 Scan first page"
 	scanNextPage  = "🖨 Scan another page"
-	finishScan    = "✅ Finish"
+	finishScan    = "✅ Save"
+	yesSend       = "✅ Yes, send it!"
+	noSend        = "❌ No, just save it"
 	cancel        = "❌ Cancel"
 )
 
+type TGConfig struct {
+	APIKey         string
+	Users          []string
+	SendScanToChat bool
+}
+
 type TG struct {
-	scm             *scanner.Manager
-	ssm             *scansession.Manager
-	bot             *tgbotapi.BotAPI
-	apiKey          string
-	logger          *zap.SugaredLogger
-	authorizedUsers []string
+	config TGConfig
+	scm    *scanner.Manager
+	ssm    *scansession.Manager
+	bot    *tgbotapi.BotAPI
+	logger *zap.SugaredLogger
 }
 
 func Init(
-	apiKey string,
-	authorizedUsers []string,
+	config TGConfig,
 	scm *scanner.Manager,
 	ssm *scansession.Manager,
 	logger *zap.SugaredLogger) *TG {
-	if apiKey == "" {
+	if config.APIKey == "" {
 		logger.Warnf("Telegram API key not set, not starting Telegram bot")
 		return nil
 	}
 
 	t := TG{
-		apiKey:          apiKey,
-		logger:          logger,
-		authorizedUsers: authorizedUsers,
-		scm:             scm,
-		ssm:             ssm,
+		config: config,
+		logger: logger,
+		scm:    scm,
+		ssm:    ssm,
 	}
 
-	bot, err := tgbotapi.NewBotAPI(t.apiKey)
+	bot, err := tgbotapi.NewBotAPI(t.config.APIKey)
 	if err != nil {
 		t.logger.Panicf("Unable to start Telegram bot: %s", err)
 		return nil
@@ -71,7 +77,7 @@ func (t *TG) Start() {
 			continue
 		}
 
-		if !slices.Contains(t.authorizedUsers, update.Message.From.UserName) {
+		if !slices.Contains(t.config.Users, update.Message.From.UserName) {
 			t.logger.Debugw(
 				"Unauthorized user detected",
 				"username", update.Message.From.UserName,
@@ -80,68 +86,102 @@ func (t *TG) Start() {
 			continue
 		}
 
-		ss := t.ssm.ScanSession(update.Message.From.UserName, update.Message.Chat.ID)
+		ss := t.ssm.ScanSession(
+			update.Message.From.UserName,
+			update.Message.Chat.ID,
+		)
 
 		t.handleScanSession(ss, update)
 	}
 }
 
-func (t *TG) handleScanSession(scanSession *scansession.ScanSession, update tgbotapi.Update) {
-	switch update.Message.Text {
+func (t *TG) handleScanSession(ss *scansession.ScanSession, u tgbotapi.Update) {
+	switch u.Message.Text {
 	case scanFirstPage, scanNextPage:
-		t.handleScanRequest(scanSession, update)
+		t.handleScanRequest(ss, u)
 	case finishScan:
-		t.handleFinishScanRequest(scanSession, update)
+		t.handleFinishScanRequest(ss, u)
+	case yesSend, noSend:
+		t.handleSendScanRequest(ss, u)
 	case cancel:
-		t.ssm.RemoveScanSession(update.Message.From.UserName)
-		t.sendMsg(update.Message.Chat.ID, "✅ Scan cancelled.")
+		t.ssm.RemoveScanSession(u.Message.From.UserName)
+		t.sendMsg(u.Message.Chat.ID, "✅ Scan cancelled.")
 	default:
-		if scanSession.NumImages() == 0 {
-			t.sendMsgWithKB(update.Message.Chat.ID,
+		if ss.NumImages() == 0 {
+			t.sendMsgWithKB(u.Message.Chat.ID,
 				"Welcome. Insert the first page and press Scan.",
-				scanSession)
+				ss)
 		} else {
-			t.sendMsgWithKB(update.Message.Chat.ID,
+			t.sendMsgWithKB(u.Message.Chat.ID,
 				"Insert the next page and press Scan.",
-				scanSession)
+				ss)
 		}
 	}
 }
 
-func (t *TG) handleFinishScanRequest(scanSession *scansession.ScanSession, update tgbotapi.Update) {
-	t.sendMsg(update.Message.Chat.ID, "⌛ Finishing scan...")
+func (t *TG) handleFinishScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
+	t.sendMsg(u.Message.Chat.ID, "⌛ Finishing scan...")
 
-	fileName, err := scanSession.WriteFinal()
+	fileName, err := ss.WriteFinal()
 	if err != nil {
-		t.logAndReportErrorToUser(update, "Telescan was Unable to write the pdf. Note that the files you scanned should still be present in the temporary directory, if they're important", err)
+		t.logAndReportErrorToUser(u, "Telescan was unable to write the pdf", err)
 		return
 	}
-	t.ssm.RemoveScanSession(update.Message.From.UserName)
-
-	t.sendMsg(update.Message.Chat.ID,
-		fmt.Sprintf("✅ Scan finished. Wrote file `%s`.", fileName))
+	if !t.config.SendScanToChat {
+		t.sendMsg(u.Message.Chat.ID,
+			fmt.Sprintf("✅ Scan finished. Wrote file `%s`.", fileName),
+		)
+		t.ssm.RemoveScanSession(u.Message.From.UserName)
+	} else {
+		t.sendMsgWithSendFileConfirmation(u.Message.Chat.ID,
+			fmt.Sprintf("✅ Scan finished. Wrote file `%s`. Would you like a copy?", fileName))
+	}
 }
 
-func (t *TG) handleScanRequest(scanSession *scansession.ScanSession, update tgbotapi.Update) {
-	t.sendMsg(update.Message.Chat.ID, "⌛ Scanning page, please wait...")
+func (t *TG) handleSendScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
+	if u.Message.Text == yesSend {
+		t.sendScanToChat(u, ss.Filename(), ss.FullPathToScan())
+	}
+
+	t.ssm.RemoveScanSession(u.Message.From.UserName)
+
+	t.sendMsg(u.Message.Chat.ID, "✅ Session closed. See you later!")
+
+}
+
+func (t *TG) sendScanToChat(u tgbotapi.Update, fn, fp string) {
+	fread, err := ioutil.ReadFile(fp)
+	if err != nil {
+		t.logAndReportErrorToUser(u, "Telescan was Unable to read the pdf.", err)
+	}
+
+	doc := tgbotapi.NewDocument(u.Message.Chat.ID, tgbotapi.FileBytes{
+		Name:  fn,
+		Bytes: fread,
+	})
+	t.bot.Send(doc)
+}
+
+func (t *TG) handleScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
+	t.sendMsg(u.Message.Chat.ID, "⌛ Scanning page, please wait...")
 
 	scanner, err := t.scm.GetScanner()
 	if err != nil {
-		t.logAndReportErrorToUser(update, "Telescan couldn't grab a scanner to scan with", err)
+		t.logAndReportErrorToUser(u, "Telescan couldn't grab a scanner to scan with", err)
 		return
 	}
 
 	bytes, err := scanner.Scan()
 	if err != nil {
-		t.logAndReportErrorToUser(update, "Telescan couldn't use this scanner", err)
+		t.logAndReportErrorToUser(u, "Telescan couldn't use this scanner", err)
 		return
 	}
 
-	scanSession.AddImage(bytes)
+	ss.AddImage(bytes)
 	t.sendMsgWithKB(
-		update.Message.Chat.ID,
-		fmt.Sprintf("✅ Scanned page %d.", scanSession.NumImages()),
-		scanSession,
+		u.Message.Chat.ID,
+		fmt.Sprintf("✅ Scanned page %d.", ss.NumImages()),
+		ss,
 	)
 }
 
@@ -170,6 +210,22 @@ func (t *TG) sendMsgWithKB(chatID int64, text string, ss *scansession.ScanSessio
 	return err
 }
 
+func (t *TG) sendMsgWithSendFileConfirmation(chat int64, text string) error {
+	msg := tgbotapi.NewMessage(chat, text)
+	msg.ParseMode = tgbotapi.ModeMarkdown
+	msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(yesSend),
+			tgbotapi.NewKeyboardButton(noSend),
+		),
+	)
+	_, err := t.bot.Send(msg)
+	if err != nil {
+		t.logger.Errorw("Unable to send message", "error", err)
+	}
+	return err
+}
+
 func (t *TG) sendMsg(chatID int64, text string) error {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = tgbotapi.ModeMarkdown
@@ -181,15 +237,14 @@ func (t *TG) sendMsg(chatID int64, text string) error {
 	return err
 }
 
-func (t *TG) logAndReportErrorToUser(
-	update tgbotapi.Update, friendlyError string, err error) {
+func (t *TG) logAndReportErrorToUser(u tgbotapi.Update, friendlyError string, err error) {
 	t.logger.Warnw("There was an error while dealing with a message",
-		"user", update.Message.From.UserName,
-		"message", update.Message.Text,
+		"user", u.Message.From.UserName,
+		"message", u.Message.Text,
 		"error", err,
 		"friendly_error", friendlyError)
 
-	t.sendMsg(update.Message.Chat.ID,
+	t.sendMsg(u.Message.Chat.ID,
 		fmt.Sprintf("❌ %s. The error was `%s`", friendlyError, err.Error()))
 
 }
