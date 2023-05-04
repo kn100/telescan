@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/brutella/dnssd v1.2.7
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
-	github.com/google/uuid v1.3.0
 	github.com/pdfcpu/pdfcpu v0.4.0
 	github.com/stapelberg/airscan v0.0.0-20230413182642-6d2d07701710
 	go.uber.org/zap v1.24.0
