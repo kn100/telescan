@@ -2,7 +2,7 @@
 
 Telescan is a Telegram Bot that allows you to use your Airscan compatible 
 scanner from a conversation on Telegram. It will save your scans to a directory
-of your choosing, and optionally send them to you through Telegram. 
+of your choosing, and optionally send them to you through Telegram.
 
 ![](https://github.com/kn100/telescan/raw/master/demo.gif)
 
