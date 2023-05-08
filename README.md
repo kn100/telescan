@@ -69,3 +69,14 @@ FINAL_DIR="/somewhere" \
 SEND_SCAN_TO_CHAT="false" \
 go run main.go
 ```
+
+# Device support
+Tested this project on your scanner? Please either submit an issue letting us
+know that it worked or didn't work, or edit the README.md to add it to the 
+lists below.
+
+## Working
+* HP Envy 5010 (tested with v0.1.6)
+
+## Not working
+* Epson WF-7830 (tested with v0.1.6)
