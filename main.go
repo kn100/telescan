@@ -4,9 +4,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kn100/telescan/scanner"
-	"github.com/kn100/telescan/scansession"
-	"github.com/kn100/telescan/tg"
+	"github.com/stnokott/telescan/scanner"
+	"github.com/stnokott/telescan/scansession"
+	"github.com/stnokott/telescan/tg"
 	"go.uber.org/zap"
 )
 

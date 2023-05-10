@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/kn100/telescan/scanner"
-	"github.com/kn100/telescan/scansession"
+	"github.com/stnokott/telescan/scanner"
+	"github.com/stnokott/telescan/scansession"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
