@@ -24,13 +24,15 @@ const (
 type Scanner struct {
 	DNSSDBrowseEntry *dnssd.BrowseEntry
 	State            ScannerState
+	source           string
 	logger           *zap.SugaredLogger
 }
 
-func Init(srv *dnssd.BrowseEntry, logger *zap.SugaredLogger) *Scanner {
+func Init(srv *dnssd.BrowseEntry, logger *zap.SugaredLogger, source string) *Scanner {
 	return &Scanner{
 		DNSSDBrowseEntry: srv,
 		State:            ScannerStateIdle,
+		source:           source,
 		logger:           logger,
 	}
 }
@@ -44,7 +46,7 @@ func (s *Scanner) Scan() ([]byte, error) {
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
 
-	scan, err := cl.Scan(scanSettings())
+	scan, err := cl.Scan(s.scanSettings())
 	if err != nil {
 		s.UpdateState(ScannerStateIdle)
 		return nil, err
@@ -85,10 +87,10 @@ func (s *Scanner) DeviceName() string {
 	return strings.ReplaceAll(s.DNSSDBrowseEntry.Name, "\\", "")
 }
 
-func scanSettings() *airscan.ScanSettings {
+func (s *Scanner) scanSettings() *airscan.ScanSettings {
 	settings := preset.GrayscaleA4ADF()
 	settings.ColorMode = "RGB24"
-	settings.InputSource = "Platen"
+	settings.InputSource = s.source
 	settings.DocumentFormat = "image/jpeg"
 	return settings
 }

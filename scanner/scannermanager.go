@@ -13,13 +13,15 @@ type Manager struct {
 	logger          *zap.SugaredLogger
 	scanners        []*Scanner
 	scannerOverride string
+	scannerSource   string
 	isStarted       bool
 }
 
-func NewManager(logger *zap.SugaredLogger, scannerOverride string) *Manager {
+func NewManager(logger *zap.SugaredLogger, scannerOverride string, scannerSource string) *Manager {
 	return &Manager{
 		logger:          logger,
 		scannerOverride: scannerOverride,
+		scannerSource:   scannerSource,
 	}
 }
 
@@ -39,7 +41,7 @@ func (s *Manager) Start() {
 			}
 		}
 		s.logger.Infof("Found new scanner %s, adding to list of scanners", srv.Host)
-		s.scanners = append(s.scanners, Init(&srv, s.logger))
+		s.scanners = append(s.scanners, Init(&srv, s.logger, s.scannerSource))
 	}
 
 	rmvFn := func(srv dnssd.BrowseEntry) {

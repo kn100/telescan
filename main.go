@@ -26,7 +26,7 @@ func main() {
 
 	sugar := logger.Sugar()
 
-	scannerManager := scanner.NewManager(sugar, env("SCANNER_OVERRIDE", ""))
+	scannerManager := scanner.NewManager(sugar, env("SCANNER_OVERRIDE", ""), mustGetScannerSource())
 	scannerManager.Start()
 
 	scanSessionManager := scansession.NewManager(
@@ -53,4 +53,12 @@ func env(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func mustGetScannerSource() string {
+	scannerSource := strings.ToLower(env("SCANNER_SOURCE", "platen"))
+	if scannerSource != "platen" && scannerSource != "adf" {
+		panic(`environment variable SCANNER_SOURCE needs to be one of "platen", "adf"`)
+	}
+	return scannerSource
 }

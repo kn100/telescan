@@ -55,6 +55,9 @@ services:
       # this variable, unless you have multiple scanners and you want to use a
       # specific one.
       # SCANNER_OVERRIDE: your-scanner
+      # Scanner source to use. Must be one of "platen", "adf".
+      # Defaults to "platen".
+      # SCANNER_SOURCE: adf
     volumes:
       - "/tmp:/tmp"
       - "/final:/final"
