@@ -1,5 +1,7 @@
 module github.com/kn100/telescan
 
+replace github.com/kn100/telescan => ./
+
 go 1.20
 
 require (
