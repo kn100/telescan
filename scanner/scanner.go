@@ -54,9 +54,7 @@ func (s *Scanner) Scan() ([]byte, error) {
 	status, err := cl.ScannerStatus()
 	s.logger.Infof("ScannerStatus(): status=%v, err=%v", status, err)
 
-	settings := s.scanSettings()
-	s.logger.Infof("settings: %v", settings)
-	scan, err := cl.Scan(settings)
+	scan, err := cl.Scan(s.scanSettings())
 	if err != nil {
 		s.UpdateState(ScannerStateIdle)
 		return nil, err

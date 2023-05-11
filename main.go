@@ -56,9 +56,12 @@ func env(key, def string) string {
 }
 
 func mustGetScannerSource() string {
-	scannerSource := strings.ToLower(env("SCANNER_SOURCE", "platen"))
-	if scannerSource != "platen" && scannerSource != "adf" {
-		panic(`environment variable SCANNER_SOURCE needs to be one of "platen", "adf"`)
+	scannerSource := strings.ToLower(env("SCANNER_SOURCE", "flatbed"))
+	if scannerSource == "flatbed" {
+		return "Platen"
 	}
-	return scannerSource
+	if scannerSource == "adf" {
+		return "Feeder"
+	}
+	panic(`environment variable SCANNER_SOURCE needs to be one of "flatbed", "adf"`)
 }
