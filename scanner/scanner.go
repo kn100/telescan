@@ -46,7 +46,9 @@ func (s *Scanner) Scan() ([]byte, error) {
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
 
-	scan, err := cl.Scan(s.scanSettings())
+	settings := s.scanSettings()
+	s.logger.Infof("settings: %v", settings)
+	scan, err := cl.Scan(settings)
 	if err != nil {
 		s.UpdateState(ScannerStateIdle)
 		return nil, err
