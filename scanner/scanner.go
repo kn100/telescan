@@ -45,6 +45,8 @@ func (s *Scanner) Scan() ([]byte, error) {
 	s.UpdateState(ScannerStateBusy)
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
+	status, err := cl.ScannerStatus()
+	s.logger.Infof("ScannerStatus(): status=%v, err=%v", status, err)
 
 	settings := s.scanSettings()
 	s.logger.Infof("settings: %v", settings)
