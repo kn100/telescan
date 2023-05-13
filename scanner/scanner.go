@@ -2,10 +2,8 @@ package scanner
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/brutella/dnssd"
@@ -47,9 +45,6 @@ func (s *Scanner) Scan() ([]byte, error) {
 	s.UpdateState(ScannerStateBusy)
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
-
-	transport := cl.HTTPClient.(*http.Client).Transport.(*http.Transport)
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	status, err := cl.ScannerStatus()
 	s.logger.Infof("ScannerStatus(): status=%v, err=%v", status, err)
