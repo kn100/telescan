@@ -44,7 +44,20 @@ func (s *Scanner) Scan() ([]byte, error) {
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
 
-	scan, err := cl.Scan(scanSettings())
+	scannerCapabilities, err := cl.ScannerCapabilities()
+	if err != nil {
+		s.UpdateState(ScannerStateIdle)
+		return nil, err
+	}
+
+	ss := scanSettings()
+	s.logger.Debugw("Scanner capabilities", "capabilities", scannerCapabilities)
+	if scannerCapabilities.Adf != nil {
+		s.logger.Infoln("ADF is available on selected scanner, so using it.")
+		ss.InputSource = "ADF"
+	}
+
+	scan, err := cl.Scan(ss)
 	if err != nil {
 		s.UpdateState(ScannerStateIdle)
 		return nil, err
