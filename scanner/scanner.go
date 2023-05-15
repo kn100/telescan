@@ -2,8 +2,10 @@ package scanner
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/brutella/dnssd"
@@ -43,6 +45,8 @@ func (s *Scanner) Scan() ([]byte, error) {
 	s.UpdateState(ScannerStateBusy)
 
 	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
+	transport := cl.HTTPClient.(*http.Client).Transport.(*http.Transport)
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	scannerCapabilities, err := cl.ScannerCapabilities()
 	if err != nil {
@@ -54,7 +58,7 @@ func (s *Scanner) Scan() ([]byte, error) {
 	s.logger.Debugw("Scanner capabilities", "capabilities", scannerCapabilities)
 	if scannerCapabilities.Adf != nil {
 		s.logger.Infoln("ADF is available on selected scanner, so using it.")
-		ss.InputSource = "ADF"
+		ss.InputSource = "Feeder"
 	}
 
 	scan, err := cl.Scan(ss)
