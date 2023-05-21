@@ -59,6 +59,13 @@ func (s *Scanner) Scan() ([]byte, error) {
 	if scannerCapabilities.Adf != nil {
 		s.logger.Infoln("ADF is available on selected scanner, so using it.")
 		ss.InputSource = "Feeder"
+		if scannerCapabilities.Adf.AdfDuplexInputCaps != nil {
+			s.logger.Infoln("ADF Duplex is available on selected scanner, so using it.")
+			ss.Duplex = true
+		} else {
+			s.logger.Infoln("ADF Duplex is not available on selected scanner, so using simplex.")
+			ss.Duplex = false
+		}
 	}
 
 	scan, err := cl.Scan(ss)
