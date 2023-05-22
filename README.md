@@ -76,7 +76,9 @@ know that it worked or didn't work, or edit the README.md to add it to the
 lists below.
 
 ## Working
-* HP Envy 5010 (tested with v0.1.6)
+* HP Envy 5010 (tested with v0.1.8)
+* Epson WF-7830 (tested with v0.1.8)
+* Brother MFC-L2710DN (tested with v0.1.8)
 
 ## Not working
-* Epson WF-7830 (tested with v0.1.6)
+
