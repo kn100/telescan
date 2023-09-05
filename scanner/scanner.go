@@ -37,7 +37,7 @@ func Init(srv *dnssd.BrowseEntry, logger *zap.SugaredLogger) *Scanner {
 	}
 }
 
-func (s *Scanner) Scan() ([]byte, error) {
+func (s *Scanner) Scan() ([]bytes.Buffer, error) {
 	if s.State != ScannerStateIdle {
 		return nil, fmt.Errorf(s.stateMsg())
 	}
@@ -76,17 +76,20 @@ func (s *Scanner) Scan() ([]byte, error) {
 
 	defer scan.Close()
 
-	var f bytes.Buffer
+	f := []bytes.Buffer{}
+	pageCount := 0
 	for scan.ScanPage() {
-		if _, err := io.Copy(&f, scan.CurrentPage()); err != nil {
+		f = append(f, bytes.Buffer{})
+		if _, err := io.Copy(&f[pageCount], scan.CurrentPage()); err != nil {
 			s.UpdateState(ScannerStateIdle)
 			return nil, err
 		}
+		pageCount++
 	}
 
 	s.UpdateState(ScannerStateIdle)
 
-	return f.Bytes(), nil
+	return f, nil
 }
 
 func (s *Scanner) GetState() ScannerState {
