@@ -109,7 +109,7 @@ func (t *TG) handleScanSession(ss *scansession.ScanSession, u tgbotapi.Update) {
 	default:
 		if ss.NumImages() == 0 {
 			t.sendMsgWithKB(u.Message.Chat.ID,
-				"Welcome. Insert the first page and press Scan.",
+				"Welcome. Insert the first page and press Scan. If your scanner has an Automatic Document Feeder (ADF), you can scan multiple pages at once by placing them in the feeder now.",
 				ss)
 		} else {
 			t.sendMsgWithKB(u.Message.Chat.ID,
@@ -162,27 +162,35 @@ func (t *TG) sendScanToChat(u tgbotapi.Update, fn, fp string) {
 	t.bot.Send(doc)
 }
 
-func (t *TG) handleScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
-	t.sendMsg(u.Message.Chat.ID, "⌛ Scanning page, please wait...")
-
+func (t *TG) scan(ss *scansession.ScanSession, u tgbotapi.Update) int {
 	scanner, err := t.scm.GetScanner()
 	if err != nil {
 		t.logAndReportErrorToUser(u, "Telescan couldn't grab a scanner to scan with", err)
-		return
+		return 0
 	}
 
-	bytes, err := scanner.Scan()
+	b, err := scanner.Scan()
 	if err != nil {
 		t.logAndReportErrorToUser(u, "Telescan couldn't use this scanner", err)
+		return 0
+	}
+
+	ss.AddImages(b)
+
+	return len(b)
+}
+
+func (t *TG) handleScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
+	t.sendMsg(u.Message.Chat.ID, "⌛ Scanning page(s), please wait...")
+
+	numPages := t.scan(ss, u)
+
+	if numPages == 0 {
+		t.sendMsg(u.Message.Chat.ID, "❌ No pages scanned. Please try again.")
 		return
 	}
 
-	ss.AddImage(bytes)
-	t.sendMsgWithKB(
-		u.Message.Chat.ID,
-		fmt.Sprintf("✅ Scanned page %d.", ss.NumImages()),
-		ss,
-	)
+	t.sendMsgWithKB(u.Message.Chat.ID, fmt.Sprintf("✅ Scanned %d pages.", numPages), ss)
 }
 
 func (t *TG) sendMsgWithKB(chatID int64, text string, ss *scansession.ScanSession) error {

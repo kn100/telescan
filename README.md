@@ -21,8 +21,8 @@ thing and I can search for the document later.
 
 1. Create a Telegram Bot using the [BotFather](https://telegram.me/BotFather).
 2. Make sure your Telegram account has a username set.
-2. Use the example Docker Compose file below to get started.
-3. Start a chat with your new Telegram bot.
+3. Use the example Docker Compose file below to get started.
+4. Start a chat with your new Telegram bot.
 
 ## Docker Compose
 
@@ -60,6 +60,8 @@ services:
       - "/final:/final"
 ```
 
+Telescan will use the Automatic Document Feed capability of your scanner, if it supports it. It is not currently possible to override this behaviour. If your scanner does not feature this capability (ie, it is flatbed only), it'll use that.
+
 ## Running without Docker
 ```bash
 TELEGRAM_API_KEY="<some-key>" \
@@ -78,7 +80,12 @@ lists below.
 ## Working
 * HP Envy 5010 (tested with v0.1.8)
 * Epson WF-7830 (tested with v0.1.8)
+* Epson WF-3720 (tested with v0.1.9)
 * Brother MFC-L2710DN (tested with v0.1.8)
 
 ## Not working
 
+## TODO
+* The ADF simplex setup does not conveniently support scanning backsides. It is possible to insert the documents the other way and continue scanning, however this will result in the pages not being in the correct order. Add support for this interlacing if the user chooses to scan backsides.
+* It would probably be nice to ask the user if they want to scan in A4 or Letter - rather than just forcing the superior standard (A4). I live in Canada so this default makes me suffer too.
+* The separation between the scanner and the scan session complicates situations where the feature set of the scanner affects how the user scans. I am thinking specifically of the ADF Simplex setup issue described above. In future, after the scanner has concluded scanning all the front sides, Telescan should ask the user if they wish to scan backsides - but should only do this in the ADF Simplex case. This is going to be ugly unless we more tightly couple the scanning hardware to the scan session.

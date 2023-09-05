@@ -1,8 +1,8 @@
 package scansession
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,17 +33,20 @@ func NewScanSession(userName string, chatID int64, tmpDir, finalDir string) *Sca
 	}
 }
 
-func (s *ScanSession) AddImage(imgBytes []byte) {
+func (s *ScanSession) AddImages(imgBytes []bytes.Buffer) {
 	s.ScanLastUpdated = time.Now()
-	s.filesInScan = append(s.filesInScan, imgBytes)
+	for _, img := range imgBytes {
+		s.filesInScan = append(s.filesInScan, img.Bytes())
+	}
 }
 
 func (s *ScanSession) WriteFinal() (string, error) {
+	// TODO: Interlace the images if the scanner is ADF simplex
 	filesOnDisk := make([]string, len(s.filesInScan))
 	for i := 0; i < len(s.filesInScan); i++ {
 		fileName := fmt.Sprintf("%s-%d.jpg", s.Filename(), i)
 		filePath := filepath.Join(s.tmpDir, fileName)
-		err := ioutil.WriteFile(filePath, s.filesInScan[i], 0644)
+		err := os.WriteFile(filePath, s.filesInScan[i], 0644)
 		if err != nil {
 			return "", err
 		}
