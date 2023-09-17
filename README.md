@@ -30,7 +30,6 @@ thing and I can search for the document later.
 version: '3.8'
 services:
   telescan:
-    build: .
     image: ghcr.io/kn100/telescan:latest
     # Host networking is essential since we need to be able to receive Bonjour 
     # broadcasts from the scanner. If you do not use host networking, you will
