@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/kn100/telescan/paperlessngx"
 	"github.com/kn100/telescan/scanner"
 	"github.com/kn100/telescan/scansession"
 	"go.uber.org/zap"
@@ -38,6 +39,7 @@ func Init(
 	config TGConfig,
 	scm *scanner.Manager,
 	ssm *scansession.Manager,
+	pngxconfig paperlessngx.PNGXConfig,
 	logger *zap.SugaredLogger) *TG {
 	if config.APIKey == "" {
 		logger.Warnf("Telegram API key not set, not starting Telegram bot")

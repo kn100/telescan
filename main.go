@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/kn100/telescan/paperlessngx"
 	"github.com/kn100/telescan/scanner"
 	"github.com/kn100/telescan/scansession"
 	"github.com/kn100/telescan/tg"
@@ -34,6 +35,12 @@ func main() {
 		env("FINAL_DIR", "/final"),
 	)
 
+	paperlessNGXconfig := paperlessngx.PNGXConfig{
+		Username: env("PAPERLESS_USERNAME", ""),
+		Password: env("PAPERLESS_PASSWORD", ""),
+		URL:      env("PAPERLESS_URL", ""),
+	}
+
 	tgconfig := tg.TGConfig{
 		APIKey:         env("TELEGRAM_API_KEY", ""),
 		Users:          strings.Split(env("AUTHORIZED_USERS", ""), ","),
@@ -44,6 +51,7 @@ func main() {
 		tgconfig,
 		scannerManager,
 		scanSessionManager,
+		paperlessNGXconfig,
 		sugar)
 	tgbot.Start()
 }
