@@ -37,7 +37,7 @@ func Init(srv *dnssd.BrowseEntry, logger *zap.SugaredLogger) *Scanner {
 	}
 }
 
-func (s *Scanner) Scan() ([]bytes.Buffer, error) {
+func (s *Scanner) Scan(scanSource string) ([]bytes.Buffer, error) {
 	if s.State != ScannerStateIdle {
 		return nil, fmt.Errorf(s.stateMsg())
 	}
@@ -56,7 +56,7 @@ func (s *Scanner) Scan() ([]bytes.Buffer, error) {
 
 	ss := scanSettings()
 	s.logger.Debugw("Scanner capabilities", "capabilities", scannerCapabilities)
-	if scannerCapabilities.Adf != nil {
+	if scanSource == "Feeder" && scannerCapabilities.Adf != nil {
 		s.logger.Infoln("ADF is available on selected scanner, so using it.")
 		ss.InputSource = "Feeder"
 		if scannerCapabilities.Adf.AdfDuplexInputCaps != nil {
@@ -118,6 +118,23 @@ func scanSettings() *airscan.ScanSettings {
 	settings.InputSource = "Platen"
 	settings.DocumentFormat = "image/jpeg"
 	return settings
+}
+
+func (s *Scanner) HasADF() (bool, error) {
+	if s.State != ScannerStateIdle {
+		return false, fmt.Errorf(s.stateMsg())
+	}
+
+	cl := airscan.NewClientForService(s.DNSSDBrowseEntry)
+	transport := cl.HTTPClient.(*http.Client).Transport.(*http.Transport)
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
+	scannerCapabilities, err := cl.ScannerCapabilities()
+	if err != nil {
+		return false, err
+	}
+
+	return scannerCapabilities.Adf != nil, nil
 }
 
 func (s *Scanner) stateMsg() string {
