@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	scanFirstPage = "🖨 Scan first page"
-	scanNextPage  = "🖨 Scan another page"
-	finishScan    = "✅ Save"
-	yesSend       = "✅ Yes, send it!"
-	noSend        = "❌ No, just save it"
-	cancel        = "❌ Cancel"
+	scanADF         = "🖨 Scan all pages from ADF"
+	scanFlatbed     = "🖨 Scan page from Flatbed"
+	scanNextADF     = "🖨 Scan more pages from ADF"
+	scanNextFlatbed = "🖨 Scan next page from Flatbed"
+	finishScan      = "✅ Save"
+	yesSend         = "✅ Yes, send it!"
+	noSend          = "❌ No, just save it"
+	cancel          = "❌ Cancel"
 )
 
 type TGConfig struct {
@@ -97,7 +99,11 @@ func (t *TG) Start() {
 
 func (t *TG) handleScanSession(ss *scansession.ScanSession, u tgbotapi.Update) {
 	switch u.Message.Text {
-	case scanFirstPage, scanNextPage:
+	case scanADF, scanNextADF:
+		ss.ScanSource = "Feeder"
+		t.handleScanRequest(ss, u)
+	case scanFlatbed, scanNextFlatbed:
+		ss.ScanSource = "Platen"
 		t.handleScanRequest(ss, u)
 	case finishScan:
 		t.handleFinishScanRequest(ss, u)
@@ -106,6 +112,10 @@ func (t *TG) handleScanSession(ss *scansession.ScanSession, u tgbotapi.Update) {
 	case cancel:
 		t.ssm.RemoveScanSession(u.Message.From.UserName)
 		t.sendMsg(u.Message.Chat.ID, "✅ Scan cancelled.")
+	case settings:
+		t.sendSettingsKeyboard(u.Message.Chat.ID)
+	case back:
+		t.sendMsgWithKB(u.Message.Chat.ID, "Welcome. Insert the first page and press Scan. If your scanner has an Automatic Document Feeder (ADF), you can scan multiple pages at once by placing them in the feeder now.", ss)
 	default:
 		if ss.NumImages() == 0 {
 			t.sendMsgWithKB(u.Message.Chat.ID,
@@ -169,7 +179,7 @@ func (t *TG) scan(ss *scansession.ScanSession, u tgbotapi.Update) int {
 		return 0
 	}
 
-	b, err := scanner.Scan()
+	b, err := scanner.Scan(ss.ScanSource)
 	if err != nil {
 		t.logAndReportErrorToUser(u, "Telescan couldn't use this scanner", err)
 		return 0
@@ -196,26 +206,59 @@ func (t *TG) handleScanRequest(ss *scansession.ScanSession, u tgbotapi.Update) {
 func (t *TG) sendMsgWithKB(chatID int64, text string, ss *scansession.ScanSession) error {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = tgbotapi.ModeMarkdown
-	if ss.NumImages() == 0 {
-		msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton(scanFirstPage),
-			),
-		)
-	} else {
-		msg.ReplyMarkup = tgbotapi.NewOneTimeReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton(scanNextPage),
-				tgbotapi.NewKeyboardButton(finishScan),
-				tgbotapi.NewKeyboardButton(cancel),
-			),
-		)
+
+	scanner, err := t.scm.GetScanner()
+	hasADF := false
+	if err == nil {
+		hasADF, _ = scanner.HasADF()
 	}
-	_, err := t.bot.Send(msg)
+
+	msg.ReplyMarkup = t.generateKeyboard(ss, hasADF)
+
+	_, err = t.bot.Send(msg)
 	if err != nil {
 		t.logger.Errorw("Unable to send message", "error", err)
 	}
 	return err
+}
+
+func (t *TG) generateKeyboard(ss *scansession.ScanSession, hasADF bool) tgbotapi.ReplyKeyboardMarkup {
+	if ss.NumImages() == 0 {
+		return t.initialKeyboard(hasADF)
+	}
+	return t.continueKeyboard(ss.ScanSource)
+}
+
+func (t *TG) initialKeyboard(hasADF bool) tgbotapi.ReplyKeyboardMarkup {
+	var rows [][]tgbotapi.KeyboardButton
+	if hasADF {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(scanADF),
+			tgbotapi.NewKeyboardButton(scanFlatbed),
+		))
+	} else {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(scanFlatbed),
+		))
+	}
+	rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton(settings),
+	))
+	return tgbotapi.NewReplyKeyboard(rows...)
+}
+
+func (t *TG) continueKeyboard(scanSource string) tgbotapi.ReplyKeyboardMarkup {
+	var rows [][]tgbotapi.KeyboardButton
+	if scanSource == "Feeder" {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(scanNextADF)))
+	} else {
+		rows = append(rows, tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(scanNextFlatbed)))
+	}
+	rows = append(rows, tgbotapi.NewKeyboardButtonRow(
+		tgbotapi.NewKeyboardButton(finishScan),
+		tgbotapi.NewKeyboardButton(cancel),
+	))
+	return tgbotapi.NewReplyKeyboard(rows...)
 }
 
 func (t *TG) sendMsgWithSendFileConfirmation(chat int64, text string) error {

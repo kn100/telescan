@@ -20,6 +20,7 @@ type ScanSession struct {
 	finalDir        string
 	filesInScan     [][]byte
 	wroteFinal      bool
+	ScanSource      string
 }
 
 func NewScanSession(userName string, chatID int64, tmpDir, finalDir string) *ScanSession {
